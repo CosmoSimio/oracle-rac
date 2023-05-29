@@ -1,0 +1,189 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: oracledb-rac-node1-svc
+  namespace: oracle
+spec:
+  selector:
+    app: oracledb-rac-node1
+  clusterIP: None
+  ports:
+    - protocol: TCP
+      port: 1521
+      targetPort: 1521
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: oracledb-rac-node2-svc
+  namespace: oracle
+spec:
+  selector:
+    app: oracledb-rac-node2
+  clusterIP: None
+  ports:
+    - protocol: TCP
+      port: 1521
+      targetPort: 1521
+
+---
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: oracledb-rac-node1
+  namespace: oracle
+spec:
+  selector:
+    matchLabels:
+      app: oracledb-rac-node1
+  serviceName: oracledb-rac-node1-svc
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: oracledb-rac-node1
+    spec:
+      serviceAccountName: oracle-service-account
+      hostname: racnode1
+      volumes:
+        - name: oraclerac-pvc
+          persistentVolumeClaim:
+            claimName: efs-pvc-oraclerac
+      containers:
+        - name: racnode1
+          image: container-registry.oracle.com/database/rac:latest
+          volumeMounts:
+            - name: oraclerac-pvc
+              mountPath: /oradata
+          resources:
+            requests:
+              memory: "16Gi"
+              cpu: "4"
+            limits:
+              memory: "32Gi"
+              cpu: "8"
+          securityContext:
+            privileged: false
+            capabilities:
+              add:
+                - SYS_NICE
+                - SYS_RESOURCE
+                - NET_ADMIN
+          env:
+            - name: NODE_VIP
+              value: 172.16.1.160
+            - name: VIP_HOSTNAME
+              value: racnode1-vip
+            - name: PRIV_IP
+              value: 192.168.17.150
+            - name: PRIV_HOSTNAME
+              value: racnode1-priv
+            - name: PUBLIC_IP
+              value: 172.16.1.150
+            - name: PUBLIC_HOSTNAME
+              value: racnode1
+            - name: SCAN_NAME
+              value: racnode-scan
+            - name: SCAN_IP
+              value: 172.16.1.70
+            - name: OP_TYPE
+              value: INSTALL
+            - name: DOMAIN
+              value: example.com
+            - name: ASM_DEVICE_LIST
+              value: /dev/asm_disk1,/dev/asm_disk2
+            - name: ASM_DISCOVERY_DIR
+              value: /dev
+            - name: CMAN_HOSTNAME
+              value: racnode-cman1
+            - name: CMAN_IP
+              value: 172.16.1.15
+            - name: COMMON_OS_PWD_FILE
+              value: common_os_pwdfile.enc
+            - name: PWD_KEY
+              value: pwd.key
+            - name: RAC_NODE2_SERVICE_NAME
+              value: oracledb-rac-node2-svc
+
+---
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: oracledb-rac-node2
+  namespace: oracle
+spec:
+  selector:
+    matchLabels:
+      app: oracledb-rac-node2
+  serviceName: oracledb-rac-node2-svc
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: oracledb-rac-node2
+    spec:
+      serviceAccountName: oracle-service-account
+      hostname: racnode2
+      volumes:
+        - name: oraclerac-pvc
+          persistentVolumeClaim:
+            claimName: efs-pvc-oraclerac
+      containers:
+        - name: racnode2
+          image: container-registry.oracle.com/database/rac:latest
+          volumeMounts:
+            - name: oraclerac-pvc
+              mountPath: /oradata
+          resources:
+            requests:
+              memory: "16Gi"
+              cpu: "4"
+            limits:
+              memory: "32Gi"
+              cpu: "8"
+          securityContext:
+            privileged: false
+            capabilities:
+              add:
+                - SYS_NICE
+                - SYS_RESOURCE
+                - NET_ADMIN
+          env:
+            - name: EXISTING_CLS_NODES
+              value: racnode1
+            - name: NODE_VIP
+              value: 172.16.1.161
+            - name: VIP_HOSTNAME
+              value: racnode2-vip
+            - name: PRIV_IP
+              value: 192.168.17.151
+            - name: PRIV_HOSTNAME
+              value: racnode2-priv
+            - name: PUBLIC_IP
+              value: 172.16.1.151
+            - name: PUBLIC_HOSTNAME
+              value: racnode2
+            - name: DOMAIN
+              value: example.com
+            - name: SCAN_NAME
+              value: racnode-scan
+            - name: SCAN_IP
+              value: 172.16.1.70
+            - name: ASM_DISCOVERY_DIR
+              value: /dev
+            - name: ASM_DEVICE_LIST
+              value: /dev/asm_disk1,/dev/asm_disk2
+            - name: ORACLE_SID
+              value: ORCLCDB
+            - name: OP_TYPE
+              value: ADDNODE
+            - name: COMMON_OS_PWD_FILE
+              value: common_os_pwdfile.enc
+            - name: PWD_KEY
+              value: pwd.key
+            - name: RAC_NODE1_SERVICE_NAME
+              value: oracledb-rac-node1-svc
